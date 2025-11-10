@@ -26,11 +26,11 @@ export default function LandingPage() {
           CampusConnect Agent
         </p>
         <h1 style={{ margin: '0 0 1rem', fontSize: '2.8rem', lineHeight: 1.1 }}>
-          Grestok guidance without the wait
+          Guidance without the wait
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '2.5rem' }}>
-          Verify with Firebase, surface your profile context, and ask the CampusConnect agent
-          anything about admissions, funding, or timelines.
+          Ask the CampusConnect agent
+          anything about admissions, courses, or internships etc.
         </p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link

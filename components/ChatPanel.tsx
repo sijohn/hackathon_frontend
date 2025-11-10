@@ -10,7 +10,7 @@ interface ChatMessage {
   ts: number;
 }
 
-const defaultBaseUrl = 'http://127.0.0.1:8000';
+const defaultBaseUrl = 'https://grestok-campus-connect-agent-323291789059.asia-south1.run.app';
 
 export function ChatPanel() {
   const { idToken, user } = useAuth();
