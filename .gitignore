@@ -1,0 +1,6 @@
+node_modules/
+.next/
+.next/static/chunks/23-556e054e153e62e5.js
+.env.local
+.env.setvariables
+screenshot/
