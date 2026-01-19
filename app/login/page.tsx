@@ -46,10 +46,10 @@ export default function LoginPage() {
           boxShadow: '0 20px 35px rgba(0, 0, 0, 0.45)',
         }}
       >
-        <p style={{ color: 'var(--accent)', margin: 0 }}>CampusConnect Agent</p>
+        <p style={{ color: 'var(--accent)', margin: 0 }}>Grestok Navigator Agent</p>
         <h1 style={{ margin: '0.25rem 0 1.5rem' }}>Sign in</h1>
         <p style={{ margin: '0 0 2rem', color: 'var(--text-muted)' }}>
-          Use the credentials shared for the hackathon. Accounts are provisioned via Firebase Auth.
+          Use the credentials shared.
         </p>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.95rem' }}>

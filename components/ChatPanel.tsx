@@ -155,7 +155,7 @@ export function ChatPanel() {
       >
         {messages.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>
-            Ask about programs, funding, or what to do next. Your Firebase identity is already attached.
+            Ask about Canada Express entry immigration program or what to do next.
           </p>
         ) : (
           messages.map(message => (
