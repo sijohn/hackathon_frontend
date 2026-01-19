@@ -23,14 +23,14 @@ export default function LandingPage() {
         }}
       >
         <p style={{ color: 'var(--accent)', marginBottom: '0.5rem', fontWeight: 600 }}>
-          CampusConnect Agent
+          Grestok Navigator Agent
         </p>
         <h1 style={{ margin: '0 0 1rem', fontSize: '2.8rem', lineHeight: 1.1 }}>
           Guidance without the wait
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '2.5rem' }}>
-          Ask the CampusConnect agent
-          anything about admissions, courses, or internships etc.
+          Ask the Immigration agent
+          anything about Canada immigration & Express entry program.
         </p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link

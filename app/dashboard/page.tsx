@@ -25,7 +25,7 @@ export default function DashboardPage() {
         <div style={cardStyles}>
           <h1 style={{ marginTop: 0 }}>You are signed out</h1>
           <p style={{ color: 'var(--text-muted)' }}>
-            Authenticate through Firebase to unlock the CampusConnect dashboard.
+            Authenticate through Firebase.
           </p>
           <Link
             href="/login"

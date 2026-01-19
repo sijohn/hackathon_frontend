@@ -159,7 +159,7 @@ export function ChatPanel() {
       }}
     >
       <header style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Chat with CampusConnect</h2>
+        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Chat with Grestok Navigator</h2>
       </header>
       <div
         style={{

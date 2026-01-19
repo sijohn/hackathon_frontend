@@ -96,7 +96,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p style={{ marginTop: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Having trouble? Ping the CampusConnect ops channel or{' '}
+          Having trouble? Ping the Grestok ops channel or{' '}
           <Link href="/" style={{ color: 'var(--accent)' }}>
             go back
           </Link>
