@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useMemo, useRef, useState, type CSSProperties } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/context/AuthContext';
 
 interface ChatMessage {
@@ -124,27 +126,7 @@ export function ChatPanel() {
     setAttachedFile(null);
   };
 
-  const formattedMessage = (text: string) => {
-    const chunks = formatMessageChunks(text);
-    return chunks.map((chunk, index) => {
-      if (chunk.type === 'list') {
-        return (
-          <ul key={`${chunk.type}-${index}`} style={{ margin: '0.35rem 0', paddingLeft: '1.25rem' }}>
-            {chunk.items.map((item, itemIndex) => (
-              <li key={itemIndex} style={{ marginBottom: '0.2rem' }}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        );
-      }
-      return (
-        <p key={`${chunk.type}-${index}`} style={{ margin: '0.35rem 0' }}>
-          {chunk.text}
-        </p>
-      );
-    });
-  };
+
 
   return (
     <section
@@ -189,7 +171,25 @@ export function ChatPanel() {
                 whiteSpace: 'normal',
               }}
             >
-              {formattedMessage(message.text)}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  ul: ({ node, ...props }) => (
+                    <ul style={{ margin: '0.35rem 0', paddingLeft: '1.25rem' }} {...props} />
+                  ),
+                  li: ({ node, ...props }) => (
+                    <li style={{ marginBottom: '0.2rem' }} {...props} />
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p style={{ margin: '0.35rem 0' }} {...props} />
+                  ),
+                  strong: ({ node, ...props }) => (
+                    <strong style={{ fontWeight: 600, color: message.author === 'user' ? 'inherit' : '#fff' }} {...props} />
+                  ),
+                }}
+              >
+                {message.text}
+              </ReactMarkdown>
             </div>
           ))
         )}
@@ -261,56 +261,7 @@ export function ChatPanel() {
   );
 }
 
-type MessageChunk =
-  | { type: 'paragraph'; text: string }
-  | {
-      type: 'list';
-      items: string[];
-    };
 
-function formatMessageChunks(text: string): MessageChunk[] {
-  const lines = text.split('\n');
-  const chunks: MessageChunk[] = [];
-  let currentParagraph: string[] = [];
-  let currentList: string[] | null = null;
-
-  const flushParagraph = () => {
-    if (currentParagraph.length) {
-      chunks.push({ type: 'paragraph', text: currentParagraph.join(' ') });
-      currentParagraph = [];
-    }
-  };
-
-  const flushList = () => {
-    if (currentList && currentList.length) {
-      chunks.push({ type: 'list', items: currentList });
-      currentList = null;
-    }
-  };
-
-  lines.forEach(rawLine => {
-    const line = rawLine.trim();
-    if (!line) {
-      flushParagraph();
-      flushList();
-      return;
-    }
-    if (/^[-*•]/.test(line)) {
-      flushParagraph();
-      if (!currentList) {
-        currentList = [];
-      }
-      currentList.push(line.replace(/^[-*•]\s?/, '').trim());
-    } else {
-      flushList();
-      currentParagraph.push(line);
-    }
-  });
-
-  flushParagraph();
-  flushList();
-  return chunks;
-}
 
 const iconButtonStyles: CSSProperties = {
   border: '1px solid var(--border)',
