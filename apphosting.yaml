@@ -36,7 +36,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_AGENT_BASE_URL
-    secret: NEXT_PUBLIC_AGENT_BASE_URL
+    secret: NEXT_PUBLIC_AGENT_BASE_URL@3
     availability:
       - BUILD
       - RUNTIME
