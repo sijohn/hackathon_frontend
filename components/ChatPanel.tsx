@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/context/AuthContext';
@@ -22,6 +22,7 @@ export function ChatPanel() {
   const [error, setError] = useState<string | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
 
   const endpoint = useMemo(() => {
     const base = process.env.NEXT_PUBLIC_AGENT_BASE_URL ?? defaultBaseUrl;
@@ -33,14 +34,84 @@ export function ChatPanel() {
     return base.replace(/\/$/, '') + '/grestok-agent/upload';
   }, []);
 
-  const sessionId = useMemo(() => {
-    const namespace = process.env.NEXT_PUBLIC_AGENT_SESSION_NAMESPACE ?? 'local-test';
-    return `${namespace}-${user?.uid ?? 'guest'}`;
-  }, [user?.uid]);
+  // State to hold the real agent session ID
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Initialize Session on mount or when user changes
+  useEffect(() => {
+    const initSession = async () => {
+      if (!user) return;
+      try {
+        console.log('Initializing Agent Session for', user.email);
+        const res = await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.email })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Session Init Response:', data);
+
+          // Extract session_id from response
+          // Adjust this based on actual response structure from Vertex AI
+          // If response is { session_id: "..." } or { output: { session_id: "..." } }
+          // Recursively look for session_id or id if needed, but 'session_id' is standard expectation
+          const extractSessionId = (value: unknown): string | null => {
+            if (!value || typeof value !== 'object') return null;
+            const obj = value as Record<string, unknown>;
+            const direct =
+              (typeof obj.session_id === 'string' && obj.session_id) ||
+              (typeof obj.sessionId === 'string' && obj.sessionId) ||
+              (typeof obj.id === 'string' && obj.id);
+            if (direct) return direct;
+
+            const session = obj.session as Record<string, unknown> | undefined;
+            if (session) {
+              if (typeof session.id === 'string' && session.id) return session.id;
+              if (typeof session.name === 'string' && session.name) {
+                const name = session.name;
+                if (name.includes('/sessions/')) {
+                  return name.split('/').pop() || name;
+                }
+                return name;
+              }
+            }
+
+            for (const val of Object.values(obj)) {
+              const nested = extractSessionId(val);
+              if (nested) return nested;
+            }
+            return null;
+          };
+
+          const sid = extractSessionId(data);
+
+          if (sid) {
+            setSessionId(sid);
+          } else {
+            console.warn('No session_id found in response', data);
+          }
+        } else {
+          console.error('Session creation failed', res.status);
+        }
+      } catch (e) {
+        console.error('Failed to init session', e);
+      }
+    };
+
+    initSession();
+  }, [user]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!input.trim()) {
+      return;
+    }
+
+    if (!sessionId) {
+      setError('Connecting to agent... please wait.');
+      // Optionally retry init or just wait
       return;
     }
 
@@ -51,78 +122,243 @@ export function ChatPanel() {
       typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`;
-    setMessages(prev => [
-      ...prev,
-      { id: tempId, author: 'user', text: prompt, ts: Date.now() },
-      { id: `${tempId}-pending`, author: 'agent', text: 'Thinking…', ts: Date.now() },
-    ]);
+
+    // Optimistically add user message
+    const userMsg: ChatMessage = { id: tempId, author: 'user', text: prompt, ts: Date.now() };
+    const pendingId = `${tempId}-pending`;
+    const pendingMsg: ChatMessage = { id: pendingId, author: 'agent', text: 'Thinking...', ts: Date.now() };
+
+    setMessages(prev => [...prev, userMsg, pendingMsg]);
+    setPendingMessageId(pendingId);
     setIsSending(true);
 
     try {
-      let response: Response;
-      if (attachedFile) {
-        const formData = new FormData();
-        formData.append('message', prompt);
-        formData.append('session_id', sessionId);
-        formData.append('file', attachedFile);
-        response = await fetch(uploadEndpoint, {
-          method: 'POST',
-          headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
-          body: formData,
-        });
-      } else {
-        const headers: Record<string, string> = {
+      const tRequestStart = performance.now();
+      // Prepare messages context (optional, but good for history if needed by backend, though backend currently just takes last message)
+      const currentMessages = [...messages, userMsg];
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
           'Content-Type': 'application/json',
-        };
-        if (idToken) {
-          headers.Authorization = `Bearer ${idToken}`;
-        }
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ message: prompt, session_id: sessionId }),
-        });
-      }
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}), // Optional if API route handles auth via cookie or headers
+        },
+        body: JSON.stringify({
+          message: prompt,
+          messages: currentMessages.map(m => ({ role: m.author, content: m.text })),
+          session_id: sessionId,
+          user_id: user?.email || '',
+          user_display_name: user?.displayName || 'Guest',
+          user_email: user?.email || '',
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(`Agent error ${response.status}`);
       }
 
-      const raw = await response.text();
-      let replyText = raw;
-      try {
-        const data = JSON.parse(raw) as {
-          reply?: string;
-          response?: string;
-          message?: string;
-          [key: string]: unknown;
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let assistantMessage = '';
+      let buffer = '';
+      let firstChunkAt: number | null = null;
+      let firstRenderAt: number | null = null;
+      let parseMs = 0;
+      const statusForFunctionCall = (name: string): string => {
+        const normalized = name.toLowerCase();
+        if (normalized.includes('ircc_score') || normalized.includes('recommendation'))
+          return 'Analyzing your CRS score...';
+        if (normalized.includes('ircc') || normalized.includes('url_search'))
+          return 'Searching IRCC sources...';
+        if (normalized.includes('rag') || normalized.includes('search')) return 'Searching sources...';
+        if (normalized.includes('policy') || normalized.includes('immigration')) return 'Checking policy details...';
+        if (normalized.includes('form') || normalized.includes('application')) return 'Reviewing application steps...';
+        return 'Working on it...';
+      };
+      const extractFunctionCallName = (payload: unknown): string | null => {
+        if (!payload || typeof payload !== 'object') return null;
+        const obj = payload as Record<string, unknown>;
+        const findInParts = (parts: Array<Record<string, unknown>> | undefined): string | null => {
+          if (!parts) return null;
+          for (const p of parts) {
+            const fc = p.function_call as Record<string, unknown> | undefined;
+            if (fc && typeof fc.name === 'string' && fc.name) return fc.name;
+            const fr = p.function_response as Record<string, unknown> | undefined;
+            if (fr && typeof fr.name === 'string' && fr.name) return fr.name;
+          }
+          return null;
         };
-        replyText =
-          data.response ??
-          data.reply ??
-          data.message ??
-          // fallback to JSON pretty print
-          JSON.stringify(data, null, 2);
-      } catch {
-        // fallback to raw text
+
+        const outputObj = obj.output as Record<string, unknown> | undefined;
+        const outputContent = outputObj?.content as Record<string, unknown> | undefined;
+        const nameFromOutput = findInParts(outputContent?.parts as Array<Record<string, unknown>> | undefined);
+        if (nameFromOutput) return nameFromOutput;
+
+        const content = obj.content as Record<string, unknown> | undefined;
+        const nameFromContent = findInParts(content?.parts as Array<Record<string, unknown>> | undefined);
+        if (nameFromContent) return nameFromContent;
+
+        const candidates = (obj.candidates as Array<Record<string, unknown>> | undefined) ?? [];
+        for (const c of candidates) {
+          const cContent = c.content as Record<string, unknown> | undefined;
+          const cName = findInParts(cContent?.parts as Array<Record<string, unknown>> | undefined);
+          if (cName) return cName;
+        }
+        return null;
+      };
+      const extractText = (payload: unknown): string => {
+        if (!payload || typeof payload !== 'object') return '';
+        const obj = payload as Record<string, unknown>;
+        if (typeof obj.output === 'string') return obj.output;
+        const outputObj = obj.output as Record<string, unknown> | undefined;
+        if (outputObj) {
+          if (typeof outputObj === 'string') return outputObj;
+          const content = outputObj.content as Record<string, unknown> | undefined;
+          const parts = (content?.parts as Array<Record<string, unknown>> | undefined) ?? [];
+          const text = parts.map(p => (typeof p.text === 'string' ? p.text : '')).join('');
+          if (text) return text;
+        }
+        const content = obj.content as Record<string, unknown> | undefined;
+        const parts = (content?.parts as Array<Record<string, unknown>> | undefined) ?? [];
+        const text = parts.map(p => (typeof p.text === 'string' ? p.text : '')).join('');
+        if (text) return text;
+        const candidates = (obj.candidates as Array<Record<string, unknown>> | undefined) ?? [];
+        for (const c of candidates) {
+          const cContent = c.content as Record<string, unknown> | undefined;
+          const cParts = (cContent?.parts as Array<Record<string, unknown>> | undefined) ?? [];
+          const cText = cParts.map(p => (typeof p.text === 'string' ? p.text : '')).join('');
+          if (cText) return cText;
+        }
+        return '';
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!firstChunkAt) {
+          firstChunkAt = performance.now();
+          console.log('Client first chunk (ms):', firstChunkAt - tRequestStart);
+        }
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+
+        // Agent Engine streams JSON lines like {"output": "Hello"}; buffer to avoid partial JSON.
+        while (true) {
+          const newlineIndex = buffer.indexOf('\n');
+          if (newlineIndex === -1) break;
+          const rawLine = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          const line = rawLine.trim();
+          if (!line) continue;
+          try {
+            const tParseStart = performance.now();
+            // Remove "data: " prefix if present (standard SSE)
+            const jsonStr = line.startsWith('data:') ? line.slice(5).trimStart() : line;
+            if (jsonStr.trim() === '[DONE]') continue;
+
+            const data = JSON.parse(jsonStr);
+            const chunkText = extractText(data);
+            if (!chunkText) {
+              const fnName = extractFunctionCallName(data);
+              if (fnName && assistantMessage.length === 0) {
+                const status = statusForFunctionCall(fnName);
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === pendingId
+                      ? { ...msg, text: status, ts: Date.now() }
+                      : msg
+                  )
+                );
+              }
+            }
+            if (chunkText) {
+              assistantMessage += chunkText;
+
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === pendingId
+                    ? { ...msg, text: assistantMessage, ts: Date.now() }
+                    : msg
+                )
+              );
+              if (!firstRenderAt) {
+                firstRenderAt = performance.now();
+                console.log('Client first render (ms):', firstRenderAt - tRequestStart);
+              }
+            }
+            parseMs += performance.now() - tParseStart;
+          } catch (e) {
+            console.warn('Failed to parse SSE chunk', line, e);
+          }
+        }
       }
 
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === `${tempId}-pending`
-            ? { ...msg, text: replyText, ts: Date.now() }
-            : msg,
-        ),
-      );
+      const tail = buffer.trim();
+      if (tail) {
+        try {
+          const tParseStart = performance.now();
+          const jsonStr = tail.startsWith('data:') ? tail.slice(5).trimStart() : tail;
+          if (jsonStr.trim() !== '[DONE]') {
+            const data = JSON.parse(jsonStr);
+            const chunkText = extractText(data);
+            if (!chunkText) {
+              const fnName = extractFunctionCallName(data);
+              if (fnName && assistantMessage.length === 0) {
+                const status = statusForFunctionCall(fnName);
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === pendingId
+                      ? { ...msg, text: status, ts: Date.now() }
+                      : msg
+                  )
+                );
+              }
+            }
+            if (chunkText) {
+              assistantMessage += chunkText;
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === pendingId
+                    ? { ...msg, text: assistantMessage, ts: Date.now() }
+                    : msg
+                )
+              );
+              if (!firstRenderAt) {
+                firstRenderAt = performance.now();
+                console.log('Client first render (ms):', firstRenderAt - tRequestStart);
+              }
+            }
+          }
+          parseMs += performance.now() - tParseStart;
+        } catch (e) {
+          console.warn('Failed to parse trailing SSE chunk', buffer, e);
+        }
+      }
+      const tEnd = performance.now();
+      console.log('Client stream timing (ms):', {
+        to_first_chunk: firstChunkAt ? firstChunkAt - tRequestStart : null,
+        to_first_render: firstRenderAt ? firstRenderAt - tRequestStart : null,
+        total: tEnd - tRequestStart,
+        parse_ms: Math.round(parseMs),
+      });
+
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(err);
-      setError('Unable to reach the Grestok agent. Confirm your token + endpoint.');
-      setMessages(prev => prev.filter(msg => msg.id !== `${tempId}-pending`));
+      let errorMessage = 'Unable to reach the Grestok agent. Please try again.';
+      if (err instanceof Error && err.message.includes('Agent error')) {
+        errorMessage = err.message; // Propagate the status code error
+      }
+      setError(errorMessage);
+      setMessages(prev => prev.filter(msg => msg.id !== pendingId));
     } finally {
       setIsSending(false);
+      setPendingMessageId(null);
     }
 
+    // Clear attachment if any (ignoring file upload for now as we switched to streaming API which handles text)
     setAttachedFile(null);
   };
 
@@ -190,6 +426,15 @@ export function ChatPanel() {
               >
                 {message.text}
               </ReactMarkdown>
+              {message.author === 'agent' &&
+              message.id === pendingMessageId &&
+              (message.text === 'Thinking...' || message.text.endsWith('...')) ? (
+                <span style={{ display: 'inline-flex', gap: '6px', marginTop: '0.35rem' }}>
+                  <span className="typing-dot" />
+                  <span className="typing-dot typing-dot-delay1" />
+                  <span className="typing-dot typing-dot-delay2" />
+                </span>
+              ) : null}
             </div>
           ))
         )}
@@ -257,6 +502,34 @@ export function ChatPanel() {
           </p>
         ) : null}
       </form>
+      <style jsx>{`
+        .typing-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.7);
+          display: inline-block;
+          animation: typingPulse 1.2s infinite ease-in-out;
+        }
+        .typing-dot-delay1 {
+          animation-delay: 0.2s;
+        }
+        .typing-dot-delay2 {
+          animation-delay: 0.4s;
+        }
+        @keyframes typingPulse {
+          0%,
+          80%,
+          100% {
+            transform: scale(0.8);
+            opacity: 0.4;
+          }
+          40% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </section>
   );
 }
