@@ -11,11 +11,13 @@ export async function POST(req: NextRequest) {
             scopes: ['https://www.googleapis.com/auth/cloud-platform']
         });
         const client = await auth.getClient();
-        const creds = await client.getCredentials();
-        console.log('ADC in use (session):', {
-            client_email: creds.client_email ?? null,
-            universe_domain: creds.universe_domain ?? null
-        });
+        if ('getCredentials' in client) {
+            const creds = await (client as { getCredentials: () => Promise<{ client_email?: string | null; universe_domain?: string | null }> }).getCredentials();
+            console.log('ADC in use (session):', {
+                client_email: creds.client_email ?? null,
+                universe_domain: creds.universe_domain ?? null
+            });
+        }
         const accessToken = await client.getAccessToken();
 
         // 2. Prepare Request
