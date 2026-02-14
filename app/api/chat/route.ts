@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         const accessToken = await client.getAccessToken();
 
         // 2. Prepare the Request
-        const url = 'https://us-central1-aiplatform.googleapis.com/v1/projects/grestok-app-dev/locations/us-central1/reasoningEngines/461903735317069824:streamQuery?alt=sse';
+        const url = 'https://us-central1-aiplatform.googleapis.com/v1/projects/grestok-app-dev/locations/us-central1/reasoningEngines/5715792505295863808:streamQuery?alt=sse';
 
         const requestBody = {
             class_method: "async_stream_query",

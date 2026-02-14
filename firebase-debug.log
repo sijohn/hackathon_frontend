@@ -1,0 +1,13 @@
+[debug] [2026-02-14T11:25:07.311Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T11:25:07.315Z] > authorizing via signed-in user (trackbot2020@gmail.com)
+[debug] [2026-02-14T11:25:07.316Z] Checked if tokens are valid: true, expires at: 1771070862448
+[debug] [2026-02-14T11:25:07.316Z] Checked if tokens are valid: true, expires at: 1771070862448
+[debug] [2026-02-14T11:25:07.316Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-14T11:25:07.317Z] > authorizing via signed-in user (trackbot2020@gmail.com)
+[debug] [2026-02-14T11:25:07.317Z] Checked if tokens are valid: true, expires at: 1771070862448
+[debug] [2026-02-14T11:25:07.317Z] Checked if tokens are valid: true, expires at: 1771070862448
+[debug] [2026-02-14T11:25:07.321Z] >>> [apiv2][query] GET https://cloudbilling.googleapis.com/v1/projects/at-shelfsense-dev/billingInfo [none]
+[debug] [2026-02-14T11:25:07.326Z] >>> [apiv2][query] GET https://cloudbilling.googleapis.com/v1/projects/at-shelfsense-dev/billingInfo [none]
+[debug] [2026-02-14T11:25:08.271Z] <<< [apiv2][status] GET https://cloudbilling.googleapis.com/v1/projects/at-shelfsense-dev/billingInfo 403
+[debug] [2026-02-14T11:25:08.271Z] <<< [apiv2][body] GET https://cloudbilling.googleapis.com/v1/projects/at-shelfsense-dev/billingInfo {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2026-02-14T11:25:08.271Z] <<< [apiv2][status] GET https://cloudbilling.googleapis.com/v1/projects/at-shelfsense-dev/billingInfo 403
